@@ -8,22 +8,12 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
-import com.example.oauthgithub.GithubConstants.CLIENT_ID
-import com.example.oauthgithub.GithubConstants.CLIENT_SECRET
-import com.example.oauthgithub.GithubConstants.REDIRECT_URI
-import com.example.oauthgithub.GithubConstants.SCOPE
 import com.example.oauthgithub.repository.Repository
+import com.example.oauthgithub.util.GithubConstants.Companion.clientId
+import com.example.oauthgithub.util.GithubConstants.Companion.redirectUri
+import com.example.oauthgithub.util.GithubConstants.Companion.scope
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import org.json.JSONTokener
-import java.io.OutputStreamWriter
-import java.net.URL
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.HttpsURLConnection
 
 
 class MainActivity : AppCompatActivity() {
@@ -42,8 +32,8 @@ class MainActivity : AppCompatActivity() {
             val webIntent  = Intent(
                 Intent.ACTION_VIEW, Uri.parse(
                     "https://github.com/login/oauth/authorize"
-                            + "?client_id=" + CLIENT_ID + "&scope=" + SCOPE
-                            + "?redirect_uri=" + REDIRECT_URI + "&state=" + state
+                            + "?client_id=" + clientId + "&scope=" + scope
+                            + "?redirect_uri=" + redirectUri + "&state=" + state
                 )
             )
             startActivity(webIntent)
@@ -54,40 +44,46 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        // the intent filter defined in AndroidManifest will handle the return from ACTION_VIEW intent
+        // the intent filter defined in AndroidManifest will handle the return
         val uri = intent.data
 
-        if (uri != null && uri.toString().startsWith(REDIRECT_URI)) {
-            // use the parameter your API exposes for the code (mostly it's "code")
+        if (uri != null && uri.toString().startsWith(redirectUri)) {
             val code = uri.getQueryParameter("code")
             val state = uri.getQueryParameter("state").toString()
+            var token = ""
+
+            val repository = Repository()
+            val viewModelFactory = MainViewModelFactory(repository)
+            val viewModel = ViewModelProvider(this, viewModelFactory).get(MainViewModel::class.java)
 
             if (code != null) {
-                //requestForAccessToken(code)
-
-                val repository = Repository()
-                val viewModelFactory = MainViewModelFactory(repository)
-                val viewModel = ViewModelProvider(this, viewModelFactory).get(MainViewModel::class.java)
-                viewModel.getAccessToken(clientId = CLIENT_ID, code = code)
-
+                viewModel.getAccessToken(clientId = clientId, code = code, state=state)
                 viewModel.myResponse.observe(this, Observer { response ->
                     if(response.isSuccessful){
 
                         Log.d("Response", response.body().toString())
-
+                        token = response.body()?.accessToken.toString()
+                        if (token.isNotEmpty()){
+                            viewModel.getUser(token)
+                            viewModel.userResponse.observe(this, Observer { response ->
+                                if(response.isSuccessful){
+                                    Log.d("Response", response.body().toString())
+                                    textView.text = response.body()?.name
+                                }else{
+                                    Log.d("Response", response.errorBody().toString())
+                                }
+                            })
+                        }
 
                     }else{
                         Log.d("Response", response.errorBody().toString())
                     }
-
                 })
-
-
             } else if (uri.getQueryParameter("error") != null) {
-                // show an error message here
+                Log.d("Error query parameter")
             }
+
         }
     }
-
 
 }
