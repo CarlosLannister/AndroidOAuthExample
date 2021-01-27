@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 })
             } else if (uri.getQueryParameter("error") != null) {
-                Log.d("Error query parameter")
+                Log.d("Error","query parameter error")
             }
 
         }
